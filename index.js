@@ -131,28 +131,23 @@ const preprocessor = (options = {}) => {
     // this event is triggered when watching and a file is saved
     const plugin = { name: 'CypressWebpackPreprocessor' }
 
+    const onCompile = () => {
+      log('compile', filePath)
+      // we overwrite the latest bundle, so that a new call to this function
+      // returns a promise that resolves when the bundling is finished
+      latestBundle = createDeferred()
+      bundles[filePath] = latestBundle.promise.tap(() => {
+        log('- compile finished for', filePath)
+        // when the bundling is finished, we call `util.fileUpdated`
+        // to let Cypress know to re-run the spec
+        file.emit('rerun')
+      })
+    }
+
     if (compiler.hooks) {
-      compiler.hooks.compile.tap(plugin, () => {
-        log('compile', filePath)
-        latestBundle = createDeferred()
-        bundles[filePath] = latestBundle.promise.tap(() => {
-          log('- compile finished for', filePath)
-          file.emit('rerun')
-        })
-      })
+      compiler.hooks.compile.tap(plugin, onCompile)
     } else {
-      compiler.plugin('compile', () => {
-        log('compile', filePath)
-        // we overwrite the latest bundle, so that a new call to this function
-        // returns a promise that resolves when the bundling is finished
-        latestBundle = createDeferred()
-        bundles[filePath] = latestBundle.promise.tap(() => {
-          log('- compile finished for', filePath)
-          // when the bundling is finished, we call `util.fileUpdated`
-          // to let Cypress know to re-run the spec
-          file.emit('rerun')
-        })
-      })
+      compiler.plugin('compile', onCompile)
     }
 
     if (file.shouldWatch) {
